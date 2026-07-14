@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  super_admin
+  editor
+}
+
+enum ContentStatus {
+  draft
+  published
+}
+
+model Admin {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(100)
+  email       String    @unique @db.VarChar(150)
+  password    String    @db.VarChar(255)
+  avatar      String?   @db.VarChar(255)
+  role        AdminRole @default(editor)
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  uploadedMedia Media[]
+  blogPosts     BlogPost[]
+
+  @@map("admins")
+}
+
+model Media {
+  id           Int      @id @default(autoincrement())
+  disk         String   @default("local") @db.VarChar(20)
+  path         String   @db.VarChar(500)
+  url          String   @db.VarChar(500)
+  originalName String   @map("original_name") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  sizeBytes    Int      @map("size_bytes")
+  width        Int?
+  height       Int?
+  uploadedBy   Int?     @map("uploaded_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  uploader Admin? @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  resumeFor       SiteSetting[]  @relation("ResumeMedia")
+  avatarFor       SiteSetting[]  @relation("AvatarMedia")
+  skillIconFor    Skill[]        @relation("SkillIcon")
+  projectThumbFor Project[]      @relation("ProjectThumbnail")
+  galleryFor      ProjectImage[] @relation("ProjectGalleryImage")
+  testimonialFor  Testimonial[]  @relation("TestimonialAvatar")
+  blogCoverFor    BlogPost[]     @relation("BlogCover")
+
+  @@map("media")
+}
+
+model SiteSetting {
+  id             Int      @id @default(autoincrement())
+  siteTitle      String   @default("") @map("site_title") @db.VarChar(150)
+  tagline        String?  @db.VarChar(255)
+  heroTitle      String?  @map("hero_title") @db.VarChar(255)
+  heroSubtitle   String?  @map("hero_subtitle") @db.Text
+  aboutText      String?  @map("about_text") @db.Text
+  resumeMediaId  Int?     @map("resume_media_id")
+  avatarMediaId  Int?     @map("avatar_media_id")
+  email          String?  @db.VarChar(150)
+  phone          String?  @db.VarChar(30)
+  address        String?  @db.VarChar(255)
+  seoTitle       String?  @map("seo_title") @db.VarChar(160)
+  seoDescription String?  @map("seo_description") @db.VarChar(320)
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  resumeMedia Media? @relation("ResumeMedia", fields: [resumeMediaId], references: [id], onDelete: SetNull)
+  avatarMedia Media? @relation("AvatarMedia", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+
+  @@map("site_settings")
+}
+
+model SettingKv {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(100)
+  value     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings_kv")
+}
+
+model Skill {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  category    String   @default("general") @db.VarChar(60)
+  proficiency Int      @default(80) @db.UnsignedTinyInt
+  iconMediaId Int?     @map("icon_media_id")
+  orderIndex  Int      @default(0) @map("order_index") @db.UnsignedInt
+  isVisible   Boolean  @default(true) @map("is_visible")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  iconMedia Media? @relation("SkillIcon", fields: [iconMediaId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([orderIndex])
+  @@map("skills")
+}
+
+model Project {
+  id               Int           @id @default(autoincrement())
+  title            String        @db.VarChar(180)
+  slug             String        @unique @db.VarChar(200)
+  shortDescription String?       @map("short_description") @db.VarChar(300)
+  description      String?       @db.LongText
+  thumbnailMediaId Int?          @map("thumbnail_media_id")
+  category         String?       @db.VarChar(80)
+  liveUrl          String?       @map("live_url") @db.VarChar(255)
+  githubUrl        String?       @map("github_url") @db.VarChar(255)
+  isFeatured       Boolean       @default(false) @map("is_featured")
+  status           ContentStatus @default(draft)
+  orderIndex       Int           @default(0) @map("order_index") @db.UnsignedInt
+  views            Int           @default(0) @db.UnsignedInt
+  publishedAt      DateTime?     @map("published_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  deletedAt        DateTime?     @map("deleted_at")
+
+  thumbnail Media?         @relation("ProjectThumbnail", fields: [thumbnailMediaId], references: [id], onDelete: SetNull)
+  images    ProjectImage[]
+  tags      ProjectTag[]
+
+  @@index([status])
+  @@index([isFeatured])
+  @@map("projects")
+}
+
+model ProjectImage {
+  id         Int @id @default(autoincrement())
+  projectId  Int @map("project_id")
+  mediaId    Int @map("media_id")
+  orderIndex Int @default(0) @map("order_index") @db.UnsignedInt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media   Media   @relation("ProjectGalleryImage", fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_images")
+}
+
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(60)
+  slug String @unique @db.VarChar(70)
+
+  projects  ProjectTag[]
+  blogPosts BlogPostTag[]
+
+  @@map("tags")
+}
+
+model ProjectTag {
+  projectId Int @map("project_id")
+  tagId     Int @map("tag_id")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, tagId])
+  @@map("project_tags")
+}
+
+model Experience {
+  id          Int       @id @default(autoincrement())
+  company     String    @db.VarChar(150)
+  role        String    @db.VarChar(150)
+  location    String?   @db.VarChar(150)
+  description String?   @db.Text
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  orderIndex  Int       @default(0) @map("order_index") @db.UnsignedInt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("experiences")
+}
+
+model Education {
+  id          Int       @id @default(autoincrement())
+  institution String    @db.VarChar(180)
+  degree      String    @db.VarChar(150)
+  field       String?   @db.VarChar(150)
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  description String?   @db.Text
+  orderIndex  Int       @default(0) @map("order_index") @db.UnsignedInt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("education")
+}
+
+model Testimonial {
+  id            Int      @id @default(autoincrement())
+  clientName    String   @map("client_name") @db.VarChar(150)
+  clientRole    String?  @map("client_role") @db.VarChar(150)
+  clientCompany String?  @map("client_company") @db.VarChar(150)
+  avatarMediaId Int?     @map("avatar_media_id")
+  message       String   @db.Text
+  rating        Int      @default(5) @db.UnsignedTinyInt
+  isApproved    Boolean  @default(false) @map("is_approved")
+  orderIndex    Int      @default(0) @map("order_index") @db.UnsignedInt
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  avatar Media? @relation("TestimonialAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+
+  @@index([isApproved])
+  @@map("testimonials")
+}
+
+model BlogPost {
+  id             Int           @id @default(autoincrement())
+  title          String        @db.VarChar(200)
+  slug           String        @unique @db.VarChar(220)
+  excerpt        String?       @db.VarChar(300)
+  content        String        @db.LongText
+  coverMediaId   Int?          @map("cover_media_id")
+  authorId       Int?          @map("author_id")
+  status         ContentStatus @default(draft)
+  views          Int           @default(0) @db.UnsignedInt
+  publishedAt    DateTime?     @map("published_at")
+  seoTitle       String?       @map("seo_title") @db.VarChar(160)
+  seoDescription String?       @map("seo_description") @db.VarChar(320)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  cover  Media?        @relation("BlogCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  author Admin?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  tags   BlogPostTag[]
+
+  @@index([status])
+  @@map("blog_posts")
+}
+
+model BlogPostTag {
+  blogPostId Int @map("blog_post_id")
+  tagId      Int @map("tag_id")
+
+  blogPost BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([blogPostId, tagId])
+  @@map("blog_post_tags")
+}
+
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(150)
+  email     String   @db.VarChar(150)
+  subject   String?  @db.VarChar(200)
+  message   String   @db.Text
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([isRead])
+  @@map("contact_messages")
+}
