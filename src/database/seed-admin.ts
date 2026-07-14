@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import * as dotenv from 'dotenv';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as readline from 'readline';
 import { PrismaClient } from '@prisma/client';
 
